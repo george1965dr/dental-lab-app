@@ -92,6 +92,11 @@ export default function NewCaseForm({ isOpen, onClose, onSubmit, editingCase }: 
   const [toothSelectionError, setToothSelectionError] = useState("")
 
   useEffect(() => {
+    if (!isOpen) return
+
+    setShowRemakePopup(false)
+    setToothSelectionError("")
+
     console.log("[v0] NewCaseForm useEffect triggered")
     console.log("[v0] editingCase:", editingCase)
 
@@ -166,7 +171,7 @@ export default function NewCaseForm({ isOpen, onClose, onSubmit, editingCase }: 
         markCompleted: false,
       })
     }
-  }, [editingCase])
+  }, [editingCase, isOpen])
 
   const handleRemakeReasonSubmit = (reason: string, notes: string) => {
     setFormData((prev) => ({
