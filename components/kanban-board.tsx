@@ -10,25 +10,16 @@ interface KanbanBoardProps {
   onUpdateWorkflow: (caseId: string, updates: any) => void
 }
 
-// Canonical left-to-right ordering covering every step name used across all
-// procedure workflow templates (see new-case-form.tsx). "completed" is the
-// universal terminal state regardless of procedure.
-const STEP_ORDER = [
-  "new",
-  "impression",
-  "impressions",
-  "photos",
-  "reviewed",
-  "designed",
-  "milled",
-  "3d_printed",
-  "sintered",
-  "sent",
-  "sent to lab",
-  "received",
-  "in office",
-  "completed",
-]
+// Fixed set of columns the board always shows, in this order, regardless of
+// what's actually present in the data. This is deliberately a curated list
+// (not derived from every step name that happens to exist across historical
+// cases) — legacy/removed-procedure data (old Aligners, Sent to Lab, etc.)
+// would otherwise each spawn their own one-off column and clutter the board.
+const CANONICAL_STEPS = ["new", "designed", "milled", "sintered", "3d_printed", "completed"]
+
+// Catch-all bucket for any case whose current step isn't one of the above —
+// keeps it visible on the board instead of silently disappearing.
+const OTHER_STEP = "__other__"
 
 const formatStepLabel = (step: string) =>
   step
@@ -48,25 +39,18 @@ export default function KanbanBoard({ cases, onViewDetails, onUpdateWorkflow }: 
   const columnRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   const columns = useMemo(() => {
-    // Derive columns from every step reachable by any case's own workflow
-    // (not just steps currently occupied) so a column stays a valid drop
-    // target even after its last case moves out of it.
-    const stepsPresent = new Set<string>()
-    cases.forEach((c) => {
-      ;(c.workflow || []).forEach((step: string) => stepsPresent.add(step))
-      stepsPresent.add("completed")
-    })
-    const ordered = Array.from(stepsPresent).sort((a, b) => {
-      const ai = STEP_ORDER.indexOf(a)
-      const bi = STEP_ORDER.indexOf(b)
-      return (ai === -1 ? STEP_ORDER.length : ai) - (bi === -1 ? STEP_ORDER.length : bi)
-    })
-
-    return ordered.map((step) => ({
+    const canonical = CANONICAL_STEPS.map((step) => ({
       step,
       label: formatStepLabel(step),
       cases: cases.filter((c) => c.currentStep === step),
     }))
+
+    const otherCases = cases.filter((c) => !CANONICAL_STEPS.includes(c.currentStep))
+    if (otherCases.length > 0) {
+      canonical.push({ step: OTHER_STEP, label: "Other", cases: otherCases })
+    }
+
+    return canonical
   }, [cases])
 
   const findColumnAt = (x: number, y: number) => {
