@@ -254,7 +254,11 @@ export default function NewCaseForm({ isOpen, onClose, onSubmit, editingCase }: 
         }
         onSubmit(updatedCase)
       } else {
-        const caseId = `C${String(Date.now()).slice(-3).padStart(3, "0")}`
+        // crypto.randomUUID() gives ~4 billion possible values in 8 hex chars —
+        // collisions are effectively impossible, unlike the previous scheme which
+        // only used the last 3 digits of the timestamp (1000 values, repeating
+        // every second) and collided with real, pre-existing case IDs.
+        const caseId = `C${crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()}`
 
         let workflow: string[] = []
         switch (formData.procedure.toLowerCase()) {
