@@ -209,7 +209,7 @@ export default function DashboardPage() {
       console.log("[v0] Transformed cases:", transformedCases)
     } catch (err) {
       console.error("[v0] Error loading cases:", err)
-      setError(err instanceof Error ? err.message : "Failed to load cases")
+      setError((err as any)?.message || "Failed to load cases")
     } finally {
       setIsLoading(false)
     }
@@ -334,7 +334,7 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.error("[v0] Error saving case:", err)
-      setError(err instanceof Error ? err.message : "Failed to save case")
+      setError((err as any)?.message || "Failed to save case")
     }
   }
 
@@ -370,7 +370,7 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.error("[v0] Error updating workflow:", err)
-      setError(err instanceof Error ? err.message : "Failed to update workflow")
+      setError((err as any)?.message || "Failed to update workflow")
     }
   }
 
@@ -397,7 +397,7 @@ export default function DashboardPage() {
       console.log("[v0] Deleted case and updated local state:", caseId)
     } catch (err) {
       console.error("[v0] Error deleting case:", err)
-      setError(err instanceof Error ? err.message : "Failed to delete case")
+      setError((err as any)?.message || "Failed to delete case")
     }
   }
 
