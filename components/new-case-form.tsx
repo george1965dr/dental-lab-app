@@ -183,7 +183,7 @@ export default function NewCaseForm({ isOpen, onClose, onSubmit, editingCase }: 
   }
 
   const handleProcedureChange = (value: string) => {
-    setFormData((prev) => ({ ...prev, procedure: value }))
+    setFormData((prev) => ({ ...prev, procedure: value, shade: value === "Surgical Guide" ? "" : prev.shade }))
 
     if (value === "Remake") {
       console.log("[v0] Remake procedure selected")
@@ -479,9 +479,12 @@ export default function NewCaseForm({ isOpen, onClose, onSubmit, editingCase }: 
                         <Select
                           value={formData.shade}
                           onValueChange={(value) => setFormData((prev) => ({ ...prev, shade: value }))}
+                          disabled={formData.procedure === "Surgical Guide"}
                         >
                           <SelectTrigger className="mt-2 h-10 rounded-xl border-border focus:border-primary text-base">
-                            <SelectValue placeholder="Select shade" />
+                            <SelectValue
+                              placeholder={formData.procedure === "Surgical Guide" ? "Not applicable" : "Select shade"}
+                            />
                           </SelectTrigger>
                           <SelectContent className="rounded-xl">
                             {shadeOptions.map((shade) => (
