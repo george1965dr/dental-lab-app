@@ -882,7 +882,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* Cases List */}
-        <Tabs defaultValue="list" className="gap-6">
+        <Tabs defaultValue="board" className="gap-6">
           <TabsList>
             <TabsTrigger value="list">List View</TabsTrigger>
             <TabsTrigger value="board">Board View</TabsTrigger>
