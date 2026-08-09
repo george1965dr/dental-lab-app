@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
+import { useTheme } from "next-themes"
 import {
   Search,
   Plus,
@@ -12,6 +13,8 @@ import {
   LogOut,
   FileText,
   CheckCircle,
+  Sun,
+  Moon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -31,6 +34,10 @@ import { jsPDF } from "jspdf"
 import { getProcedureColors } from "@/lib/procedure-colors"
 
 export default function DashboardPage() {
+  const { theme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+
   const [searchTerm, setSearchTerm] = useState("")
   const [priorityFilter, setPriorityFilter] = useState("all")
   const [procedureFilter, setProcedureFilter] = useState("all")
@@ -678,6 +685,15 @@ export default function DashboardPage() {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                title={mounted && theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                className="h-10 w-10 px-0 rounded-xl border-2 border-border hover:bg-muted font-medium bg-transparent"
+              >
+                {mounted && theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleSignOut}
                 title="Sign Out"
                 className="h-10 px-3 lg:px-4 rounded-xl border-2 border-border hover:bg-muted font-medium bg-transparent"
@@ -754,7 +770,7 @@ export default function DashboardPage() {
           >
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
               <CardTitle className="text-sm font-semibold text-muted-foreground truncate min-w-0">In Progress</CardTitle>
-              <div className="p-2 bg-chart-4 rounded-xl shrink-0">
+              <div className="p-2 bg-warning rounded-xl shrink-0">
                 <Clock className="h-4 w-4 text-white" />
               </div>
             </CardHeader>
