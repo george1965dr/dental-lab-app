@@ -161,6 +161,12 @@ export default function CaseDetailView({ isOpen, onClose, case_, onEdit }: CaseD
                   <label className="text-sm font-medium text-muted-foreground">Selected Teeth</label>
                   <p className="text-lg font-semibold">{case_.teeth.join(", ")}</p>
                 </div>
+                {case_.implantType && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Implant Type</label>
+                    <p className="text-lg font-semibold">{case_.implantType}</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -66,7 +66,7 @@ const procedures = [
   "Dx Workup",
 ]
 
-const implantTypes = ["BSB NP", "BSB RP", "Forte", "Megagen"]
+const implantTypes = ["Neodent Helix", "Neodent Helix Narrow", "BSB NP"]
 
 const scannerDevices = ["Primescan", "Aoralscan"]
 

@@ -229,9 +229,18 @@ export default function DashboardPage() {
       console.log("[v0] Selected case for editing:", selectedCase)
 
       const isImplantProcedure = newCase.procedure === "Implant Crown" || newCase.procedure === "Implant Bridge"
-      const validImplantTypes = ["BSB NP", "BSB RP", "Forte", "Megagen"]
-      const implantType =
-        isImplantProcedure && validImplantTypes.includes(newCase.implantType) ? newCase.implantType : null
+      // Current dropdown offerings only -- the office switched implant systems, so new
+      // selections must come from this list. Existing cases keep whatever historical
+      // value they already had (e.g. "Forte", "Megagen") even though it's no longer a
+      // selectable option: if the submitted value isn't one of the current choices,
+      // that means the dropdown couldn't display the old value (not that the user
+      // cleared it), so we fall back to what was already stored rather than nulling it.
+      const validImplantTypes = ["Neodent Helix", "Neodent Helix Narrow", "BSB NP"]
+      const implantType = !isImplantProcedure
+        ? null
+        : validImplantTypes.includes(newCase.implantType)
+          ? newCase.implantType
+          : selectedCase?.implantType || null
 
       console.log("[v0] Processed implant type:", implantType, "for procedure:", newCase.procedure)
 
