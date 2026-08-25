@@ -155,6 +155,21 @@ export default function KanbanBoard({ cases, onViewDetails, onUpdateWorkflow }: 
           {case_.procedure}
         </Badge>
 
+        {(case_.teeth?.length > 0 || (case_.shade && case_.shade !== "N/A")) && (
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground mb-2">
+            {case_.teeth?.length > 0 && (
+              <span>
+                <span className="font-medium text-foreground">Teeth:</span> {case_.teeth.join(", ")}
+              </span>
+            )}
+            {case_.shade && case_.shade !== "N/A" && (
+              <span>
+                <span className="font-medium text-foreground">Shade:</span> {case_.shade}
+              </span>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center justify-between text-xs">
           <span className="text-muted-foreground">
             {(() => {
