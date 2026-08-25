@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { CheckCircle2 } from "lucide-react"
 import { getProcedureColors } from "@/lib/procedure-colors"
+import { isCaseCompleted } from "@/lib/case-utils"
 import { createClient } from "@/lib/supabase/client"
 
 interface CaseDetailViewProps {
@@ -66,8 +67,8 @@ export default function CaseDetailView({ isOpen, onClose, case_, onEdit }: CaseD
 
   if (!case_) return null
 
-  const isCompleted = case_.completedSteps.length === case_.workflow.length
-  const progressPercentage = (case_.completedSteps.length / case_.workflow.length) * 100
+  const isCompleted = isCaseCompleted(case_)
+  const progressPercentage = isCompleted ? 100 : (case_.completedSteps.length / case_.workflow.length) * 100
 
   const renderToothButton = (toothNumber: number) => {
     const isSelected = case_.teeth.includes(String(toothNumber)) || case_.teeth.includes(toothNumber)
@@ -293,35 +294,37 @@ export default function CaseDetailView({ isOpen, onClose, case_, onEdit }: CaseD
               <h4 className="font-semibold">Workflow Timeline</h4>
               <div className="space-y-3">
                 {case_.workflow.map((step, index) => {
-                  const isCompleted = case_.completedSteps.includes(step)
-                  const isCurrent = step === case_.currentStep
-                  const isPending = !isCompleted && !isCurrent
+                  // The terminal "completed" step may not literally be in completedSteps
+                  // yet even though the case as a whole now counts as done (see
+                  // isCaseCompleted) -- treat it as completed rather than "current".
+                  const stepCompleted = case_.completedSteps.includes(step) || (step === "completed" && isCompleted)
+                  const isCurrent = step === case_.currentStep && !stepCompleted
 
                   return (
                     <div key={step} className="flex items-center gap-4">
                       <div className="flex items-center justify-center w-8 h-8">
-                        {getStepIcon(step, isCompleted, isCurrent)}
+                        {getStepIcon(step, stepCompleted, isCurrent)}
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-3">
                           <h5
                             className={`font-medium ${
-                              isCompleted ? "text-success" : isCurrent ? "text-accent" : "text-muted-foreground"
+                              stepCompleted ? "text-success" : isCurrent ? "text-accent" : "text-muted-foreground"
                             }`}
                           >
                             {step.charAt(0).toUpperCase() + step.slice(1)}
                           </h5>
                           <Badge
-                            variant={isCompleted ? "default" : isCurrent ? "secondary" : "outline"}
+                            variant={stepCompleted ? "default" : isCurrent ? "secondary" : "outline"}
                             className={
-                              isCompleted ? "bg-success/10 text-success" : isCurrent ? "bg-accent/10 text-accent" : ""
+                              stepCompleted ? "bg-success/10 text-success" : isCurrent ? "bg-accent/10 text-accent" : ""
                             }
                           >
-                            {isCompleted ? "Completed" : isCurrent ? "In Progress" : "Pending"}
+                            {stepCompleted ? "Completed" : isCurrent ? "In Progress" : "Pending"}
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground mt-1">
-                          {isCompleted
+                          {stepCompleted
                             ? "This step has been completed"
                             : isCurrent
                               ? "Currently working on this step"

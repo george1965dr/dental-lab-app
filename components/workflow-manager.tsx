@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { getProcedureColors } from "@/lib/procedure-colors"
+import { isCaseCompleted } from "@/lib/case-utils"
 
 interface WorkflowManagerProps {
   isOpen: boolean
@@ -22,7 +23,7 @@ export default function WorkflowManager({ isOpen, onClose, case_, onUpdateWorkfl
 
   const currentStepIndex = case_.completedSteps.length
   const nextStep = currentStepIndex < case_.workflow.length ? case_.workflow[currentStepIndex] : null
-  const isCompleted = case_.completedSteps.length === case_.workflow.length
+  const isCompleted = isCaseCompleted(case_)
 
   console.log("[v0] Current case:", case_)
   console.log("[v0] Current step index:", currentStepIndex)
@@ -103,6 +104,9 @@ export default function WorkflowManager({ isOpen, onClose, case_, onUpdateWorkfl
 
   const getStepStatus = (step: string) => {
     if (case_.completedSteps.includes(step)) return "completed"
+    // The terminal "completed" step may not literally be in completedSteps yet
+    // (see isCaseCompleted) even though the case as a whole now counts as done.
+    if (step === "completed" && isCompleted) return "completed"
     if (step === nextStep && !isCompleted) return "current"
     return "pending"
   }
@@ -205,7 +209,8 @@ export default function WorkflowManager({ isOpen, onClose, case_, onUpdateWorkfl
                         : `Next step to complete: ${nextStep?.charAt(0).toUpperCase() + nextStep?.slice(1)}`}
                   </p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Completed steps: {case_.completedSteps.length} of {case_.workflow.length}
+                    Completed steps: {isCompleted ? case_.workflow.length : case_.completedSteps.length} of{" "}
+                    {case_.workflow.length}
                   </p>
                 </div>
               </div>

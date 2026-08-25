@@ -29,6 +29,7 @@ import WorkflowManager from "@/components/workflow-manager"
 import CaseDetailView from "@/components/case-detail-view"
 import PatientListPopup from "@/components/patient-list-popup"
 import { createClient } from "@/lib/supabase/client"
+import { isCaseCompleted } from "@/lib/case-utils"
 import { useRouter } from "next/navigation"
 import { jsPDF } from "jspdf"
 import { getProcedureColors } from "@/lib/procedure-colors"
@@ -420,7 +421,7 @@ export default function DashboardPage() {
   const filteredCases = useMemo(() => {
     return cases
       .filter((case_) => {
-        const isCompleted = case_.completedSteps.length === case_.workflow.length
+        const isCompleted = isCaseCompleted(case_)
         const matchesSearch = case_.patientName.toLowerCase().includes(searchTerm.toLowerCase())
         const matchesPriority = priorityFilter === "all" || case_.priority === priorityFilter
         const matchesProcedure =
@@ -438,7 +439,7 @@ export default function DashboardPage() {
 
   const completedCases = useMemo(() => {
     return cases.filter((case_) => {
-      const isCompleted = case_.completedSteps.length === case_.workflow.length
+      const isCompleted = isCaseCompleted(case_)
       const matchesSearch = case_.patientName.toLowerCase().includes(searchTerm.toLowerCase())
       const matchesPriority = priorityFilter === "all" || case_.priority === priorityFilter
       const matchesProcedure =
@@ -452,7 +453,7 @@ export default function DashboardPage() {
 
   const stats = useMemo(() => {
     const total = cases.length
-    const completed = cases.filter((c) => c.completedSteps.length === c.workflow.length).length
+    const completed = cases.filter(isCaseCompleted).length
     const inProgress = total - completed
     const rush = cases.filter((c) => c.priority === "rush").length
     const remakes = cases.filter((c) => c.procedure === "Remake").length
@@ -502,9 +503,9 @@ export default function DashboardPage() {
       case "total":
         return cases
       case "inProgress":
-        return cases.filter((c) => c.completedSteps.length < c.workflow.length)
+        return cases.filter((c) => !isCaseCompleted(c))
       case "completed":
-        return cases.filter((c) => c.completedSteps.length === c.workflow.length)
+        return cases.filter(isCaseCompleted)
       case "rush":
         return cases.filter((c) => c.priority === "rush")
       case "remakes":

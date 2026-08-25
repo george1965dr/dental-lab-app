@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Checkbox } from "@/components/ui/checkbox"
+import { isCaseCompleted } from "@/lib/case-utils"
 
 interface NewCaseFormProps {
   isOpen: boolean
@@ -148,8 +149,7 @@ export default function NewCaseForm({ isOpen, onClose, onSubmit, editingCase }: 
         scanner: editingCase.scanner || "",
         remakeReason: remakeReason,
         remakeNotes: remakeNotes,
-        markCompleted:
-          editingCase.workflow?.length > 0 && editingCase.completedSteps?.length === editingCase.workflow?.length,
+        markCompleted: isCaseCompleted(editingCase),
       }
 
       console.log("[v0] Setting form data:", newFormData)
@@ -347,7 +347,7 @@ export default function NewCaseForm({ isOpen, onClose, onSubmit, editingCase }: 
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="max-w-3xl sm:max-w-3xl max-h-[90vh] p-0 gap-0 flex flex-col overflow-hidden rounded-2xl border-border bg-card">
+        <DialogContent className="max-w-5xl sm:max-w-5xl max-h-[90vh] p-0 gap-0 flex flex-col overflow-hidden rounded-2xl border-border bg-card">
           <DialogHeader className="px-6 py-4 border-b border-border">
             <DialogTitle className="text-xl font-semibold text-foreground">
               {editingCase ? "Edit Case - Dr G's Lab" : "New Case - Dr G's Lab"}
