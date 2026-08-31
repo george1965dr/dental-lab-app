@@ -269,21 +269,24 @@ export default function NewCaseForm({ isOpen, onClose, onSubmit, editingCase }: 
           case "implant crown":
           case "implant bridge":
           case "remake":
-          case "temp crown":
-          case "temp bridge":
             // "new" is the staging step: nothing has been touched yet. A case only moves into
             // "designed" once a technician actually advances it — it should never land there
             // just from being created.
             workflow = ["new", "designed", "milled", "sintered", "completed"]
             break
+          case "temp crown":
+          case "temp bridge":
+            // Temp restorations are milled or 3D-printed, never sintered (that's only for
+            // permanent ceramic work that goes through a sintering furnace).
+            workflow = ["new", "designed", "milled", "completed"]
+            break
           case "surgical guide":
+            // Same as temp restorations: milled or 3D-printed, never sintered.
             workflow = ["new", "designed", "3d_printed", "completed"]
             break
           case "dx workup":
-            // Digital-only (photos/scans reviewed on screen) — no lab fabrication steps, just done or not.
-            // Named "reviewed" rather than "completed" so an untouched case (currentStep = workflow[0])
-            // is never confused with the shared terminal "completed" marker other workflows advance into.
-            workflow = ["reviewed"]
+            // Digital-only (photos/scans reviewed on screen) — no lab fabrication steps.
+            workflow = ["new", "designed", "completed"]
             break
           default:
             workflow = ["new", "designed", "completed"]

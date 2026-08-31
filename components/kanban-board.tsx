@@ -30,6 +30,27 @@ const formatStepLabel = (step: string) =>
 
 const DRAG_THRESHOLD = 5 // px of movement before a mousedown counts as a drag rather than a click
 
+// Per-procedure drag restrictions, enforced independently of whatever a
+// case's own stored workflow array happens to contain (so this holds for
+// older cases created under a previous workflow template too, not just new
+// ones going forward).
+function isMoveAllowed(procedure: string, targetStep: string): boolean {
+  const p = (procedure || "").toLowerCase()
+
+  if (p === "dx workup") {
+    // Digital-only: new -> designed -> completed. Never fabrication steps.
+    return ["new", "designed", "completed"].includes(targetStep)
+  }
+
+  if (p.includes("temp") || p === "surgical guide") {
+    // Milled or 3D-printed, but never sintered (that's only for permanent
+    // ceramic restorations that actually go through a sintering furnace).
+    return targetStep !== "sintered"
+  }
+
+  return true
+}
+
 export default function KanbanBoard({ cases, onViewDetails, onUpdateWorkflow }: KanbanBoardProps) {
   const [dragCase, setDragCase] = useState<any>(null)
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 })
@@ -64,6 +85,7 @@ export default function KanbanBoard({ cases, onViewDetails, onUpdateWorkflow }: 
 
   const applyMove = (targetStep: string, case_: any) => {
     if (case_.currentStep === targetStep) return
+    if (!isMoveAllowed(case_.procedure, targetStep)) return
 
     const workflow: string[] = case_.workflow
     const fromIndex = workflow.indexOf(case_.currentStep)
