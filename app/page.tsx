@@ -12,17 +12,13 @@ import {
   Users,
   LogOut,
   FileText,
-  CheckCircle,
   Sun,
   Moon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import KanbanBoard from "@/components/kanban-board"
 import NewCaseForm from "@/components/new-case-form"
 import WorkflowManager from "@/components/workflow-manager"
@@ -418,38 +414,16 @@ export default function DashboardPage() {
     }
   }
 
-  const filteredCases = useMemo(() => {
-    return cases
-      .filter((case_) => {
-        const isCompleted = isCaseCompleted(case_)
-        const matchesSearch = case_.patientName.toLowerCase().includes(searchTerm.toLowerCase())
-        const matchesPriority = priorityFilter === "all" || case_.priority === priorityFilter
-        const matchesProcedure =
-          procedureFilter === "all" || case_.procedure.toLowerCase() === procedureFilter.toLowerCase()
-
-        return !isCompleted && matchesSearch && matchesPriority && matchesProcedure
-      })
-      .sort((a, b) => {
-        // Sort by closest due date to today (earliest due dates first)
-        const dateA = new Date(a.dueDate)
-        const dateB = new Date(b.dueDate)
-        return dateA.getTime() - dateB.getTime()
-      })
-  }, [searchTerm, priorityFilter, procedureFilter, cases])
-
-  const completedCases = useMemo(() => {
+  const boardCases = useMemo(() => {
     return cases.filter((case_) => {
-      const isCompleted = isCaseCompleted(case_)
       const matchesSearch = case_.patientName.toLowerCase().includes(searchTerm.toLowerCase())
       const matchesPriority = priorityFilter === "all" || case_.priority === priorityFilter
       const matchesProcedure =
         procedureFilter === "all" || case_.procedure.toLowerCase() === procedureFilter.toLowerCase()
 
-      return isCompleted && matchesSearch && matchesPriority && matchesProcedure
+      return matchesSearch && matchesPriority && matchesProcedure
     })
   }, [searchTerm, priorityFilter, procedureFilter, cases])
-
-  const boardCases = useMemo(() => [...filteredCases, ...completedCases], [filteredCases, completedCases])
 
   const stats = useMemo(() => {
     const total = cases.length
@@ -460,22 +434,6 @@ export default function DashboardPage() {
 
     return { total, completed, inProgress, rush, remakes }
   }, [cases])
-
-  const getProgressPercentage = (completedSteps: string[], workflow: string[]) => {
-    return (completedSteps.length / workflow.length) * 100
-  }
-
-  const getPriorityColor = (priority: string) => {
-    return priority === "rush" ? "destructive" : "secondary"
-  }
-
-  const getStepIcon = (step: string, isCompleted: boolean, isCurrent: boolean) => {
-    if (isCompleted) {
-      return <CheckCircle2 className="h-4 w-4" />
-    }
-    if (isCurrent) return <Clock className="h-4 w-4" />
-    return <div className="h-4 w-4 rounded-full border-2 border-border" />
-  }
 
   const handleViewDetails = (case_: any) => {
     setSelectedCase(case_)
@@ -907,271 +865,11 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Cases List */}
-        <Tabs defaultValue="board" className="gap-6">
-          <TabsList>
-            <TabsTrigger value="list">List View</TabsTrigger>
-            <TabsTrigger value="board">Board View</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="list">
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-            {/* Active Cases Section */}
-            <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-foreground">Active Cases ({filteredCases.length})</h2>
-
-              {filteredCases.map((case_) => (
-                <Card
-                  key={case_.id}
-                  className="border-border shadow-sm bg-card rounded-2xl hover:shadow-md hover:border-primary/20 transition-all duration-200"
-                >
-                  <CardContent className="p-6">
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-3">
-                          <h3 className="text-lg font-bold text-foreground">{case_.patientName}</h3>
-                          <Badge
-                            variant={getPriorityColor(case_.priority)}
-                            className={`px-2 py-1 rounded-full font-semibold text-xs ${
-                              case_.priority === "rush"
-                                ? "bg-destructive text-destructive-foreground"
-                                : "bg-secondary text-secondary-foreground"
-                            }`}
-                          >
-                            {case_.priority.toUpperCase()}
-                          </Badge>
-                          <Badge
-                            className={`px-2 py-1 rounded-full text-xs font-semibold ${getProcedureColors(case_.procedure)}`}
-                          >
-                            {case_.procedure}
-                          </Badge>
-                          {case_.scanner && (
-                            <Badge
-                              className="px-2 py-1 rounded-full text-xs font-semibold bg-accent text-accent-foreground border-accent"
-                            >
-                              {case_.scanner}
-                            </Badge>
-                          )}
-                        </div>
-
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm text-muted-foreground mb-4">
-                          <div className="bg-muted p-2 rounded-lg">
-                            <span className="font-semibold text-foreground">Teeth:</span>
-                            <br />
-                            {case_.teeth.join(", ")}
-                          </div>
-                          <div className="bg-muted p-2 rounded-lg">
-                            <span className="font-semibold text-foreground">Shade:</span>
-                            <br />
-                            {case_.shade}
-                          </div>
-                          <div className="bg-muted p-2 rounded-lg">
-                            <span className="font-semibold text-foreground">Due:</span>
-                            <br />
-                            {(() => {
-                              const [year, month, day] = case_.dueDate.split("-")
-                              return `${month}/${day}/${year}`
-                            })()}
-                          </div>
-                        </div>
-
-                        {/* Progress Bar */}
-                        <div className="mb-4">
-                          <div className="flex justify-between text-sm mb-2">
-                            <span className="font-semibold text-foreground">Progress</span>
-                            <span className="font-bold text-primary">
-                              {Math.round(getProgressPercentage(case_.completedSteps, case_.workflow))}%
-                            </span>
-                          </div>
-                          <Progress
-                            value={getProgressPercentage(case_.completedSteps, case_.workflow)}
-                            className="h-2 rounded-full bg-muted"
-                          />
-                        </div>
-
-                        {/* Workflow Steps */}
-                        <div className="flex flex-wrap gap-2">
-                          {case_.workflow.map((step, index) => {
-                            const isCompleted = case_.completedSteps.includes(step)
-                            const isCurrent = step === case_.currentStep
-
-                            return (
-                              <div
-                                key={step}
-                                className={`flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium transition-all duration-200 ${
-                                  isCompleted
-                                    ? "bg-chart-3 text-white shadow-lg"
-                                    : isCurrent
-                                      ? "bg-primary text-primary-foreground shadow-lg"
-                                      : "bg-muted text-muted-foreground border border-border"
-                                }`}
-                              >
-                                {getStepIcon(step, isCompleted, isCurrent)}
-                                {step.charAt(0).toUpperCase() + step.slice(1)}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleViewDetails(case_)}
-                          className="h-9 px-4 rounded-lg border-2 border-border hover:bg-muted font-medium text-xs"
-                        >
-                          View Details
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleUpdateStatus(case_)}
-                          className="h-9 px-4 rounded-lg border-2 border-border text-primary hover:bg-primary/10 font-medium text-xs"
-                        >
-                          Update Status
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-
-              {filteredCases.length === 0 && (
-                <Card className="border-border shadow-sm bg-card rounded-2xl">
-                  <CardContent className="p-8 text-center">
-                    <div className="text-muted-foreground mb-4">
-                      <Calendar className="h-12 w-12 mx-auto" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-foreground mb-2">No Active Cases</h3>
-                    <p className="text-muted-foreground mb-4">All cases are completed or no cases match your filters.</p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-
-            {/* Completed Cases Section */}
-            <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-foreground">Completed Cases ({completedCases.length})</h2>
-
-              {completedCases.map((case_) => (
-                <Card
-                  key={case_.id}
-                  className="border-border shadow-sm bg-card rounded-2xl hover:shadow-md transition-all duration-200 opacity-75"
-                >
-                  <CardContent className="p-6">
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-3">
-                          <h3 className="text-lg font-bold text-foreground">{case_.patientName}</h3>
-                          <Badge
-                            className={`px-2 py-1 rounded-full text-xs font-semibold ${getProcedureColors(case_.procedure)}`}
-                          >
-                            {case_.procedure}
-                          </Badge>
-                          {case_.scanner && (
-                            <Badge
-                              className="px-2 py-1 rounded-full text-xs font-semibold bg-accent text-accent-foreground border-accent"
-                            >
-                              {case_.scanner}
-                            </Badge>
-                          )}
-                          <Badge
-                            variant="outline"
-                            className="px-2 py-1 rounded-full border-2 border-success/40 text-success bg-success/10 text-xs font-semibold"
-                          >
-                            COMPLETED
-                          </Badge>
-                        </div>
-
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm text-muted-foreground mb-4">
-                          <div className="bg-muted p-2 rounded-lg">
-                            <span className="font-semibold text-foreground">Teeth:</span>
-                            <br />
-                            {case_.teeth.join(", ")}
-                          </div>
-                          <div className="bg-muted p-2 rounded-lg">
-                            <span className="font-semibold text-foreground">Shade:</span>
-                            <br />
-                            {case_.shade}
-                          </div>
-                          <div className="bg-muted p-2 rounded-lg">
-                            <span className="font-semibold text-foreground">Completed:</span>
-                            <br />
-                            {(() => {
-                              const [year, month, day] = case_.dueDate.split("-")
-                              return `${month}/${day}/${year}`
-                            })()}
-                          </div>
-                        </div>
-
-                        {/* Completed Progress Bar */}
-                        <div className="mb-4">
-                          <div className="flex justify-between text-sm mb-2">
-                            <span className="font-semibold text-foreground">Progress</span>
-                            <span className="font-bold text-success">100%</span>
-                          </div>
-                          <Progress value={100} className="h-2 rounded-full bg-muted" />
-                        </div>
-
-                        {/* Completed Workflow Steps */}
-                        <div className="flex flex-wrap gap-2">
-                          {case_.workflow.map((step, index) => (
-                            <div
-                              key={step}
-                              className="flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium bg-success/15 text-success border border-success/30"
-                            >
-                              <div className="h-3 w-3 bg-success rounded-full" />
-                              {step.charAt(0).toUpperCase() + step.slice(1)}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleViewDetails(case_)}
-                          className="h-9 px-4 rounded-lg border-2 border-border hover:bg-muted font-medium text-xs"
-                        >
-                          View Details
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleUpdateStatus(case_)}
-                          className="h-9 px-4 rounded-lg border-2 border-border text-primary hover:bg-primary/10 font-medium text-xs"
-                        >
-                          Reopen Case
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-
-              {completedCases.length === 0 && (
-                <Card className="border-border shadow-sm bg-card rounded-2xl">
-                  <CardContent className="p-8 text-center">
-                    <div className="text-muted-foreground mb-4">
-                      <CheckCircle className="h-12 w-12 mx-auto" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-foreground mb-2">No Completed Cases</h3>
-                    <p className="text-muted-foreground mb-4">
-                      No cases have been completed yet or no completed cases match your filters.
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          </div>
-          </TabsContent>
-
-          <TabsContent value="board">
-            <KanbanBoard cases={boardCases} onViewDetails={handleViewDetails} onUpdateWorkflow={handleUpdateWorkflow} />
-          </TabsContent>
-        </Tabs>
+        {/* Cases Board */}
+        <div>
+          <h2 className="text-2xl font-bold text-foreground mb-6">Cases ({boardCases.length})</h2>
+          <KanbanBoard cases={boardCases} onViewDetails={handleViewDetails} onUpdateWorkflow={handleUpdateWorkflow} />
+        </div>
 
         {/* New Case Form */}
         <NewCaseForm
