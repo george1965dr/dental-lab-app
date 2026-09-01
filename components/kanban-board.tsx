@@ -206,8 +206,8 @@ export default function KanbanBoard({ cases, onViewDetails, onUpdateWorkflow }: 
         <div className="flex items-center justify-between text-xs">
           <span className="text-muted-foreground">
             {(() => {
-              const [, month, day] = case_.dueDate.split("-")
-              return `${month}/${day}`
+              const [year, month, day] = case_.dueDate.split("-")
+              return `${month}/${day}/${year}`
             })()}
           </span>
           {column.step !== "completed" && (

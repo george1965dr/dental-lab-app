@@ -10,6 +10,7 @@ import { Progress } from "@/components/ui/progress"
 import { CheckCircle2 } from "lucide-react"
 import { getProcedureColors } from "@/lib/procedure-colors"
 import { isCaseCompleted } from "@/lib/case-utils"
+import { formatLocalDate } from "@/lib/date-utils"
 import { createClient } from "@/lib/supabase/client"
 
 interface CaseDetailViewProps {
@@ -92,13 +93,7 @@ export default function CaseDetailView({ isOpen, onClose, case_, onEdit }: CaseD
     return <div className="h-4 w-4 rounded-full border-2 border-border" />
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    })
-  }
+  const formatDate = (dateString: string) => formatLocalDate(dateString)
 
   const getDaysRemaining = (dueDate: string) => {
     const today = new Date()

@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { getProcedureColors } from "@/lib/procedure-colors"
 import { isCaseCompleted } from "@/lib/case-utils"
+import { formatLocalDate } from "@/lib/date-utils"
 
 interface WorkflowManagerProps {
   isOpen: boolean
@@ -165,7 +166,7 @@ export default function WorkflowManager({ isOpen, onClose, case_, onUpdateWorkfl
                   </Badge>
                 </div>
                 <div>
-                  <span className="font-medium">Due Date:</span> {new Date(case_.dueDate).toLocaleDateString()}
+                  <span className="font-medium">Due Date:</span> {formatLocalDate(case_.dueDate)}
                 </div>
               </div>
             </CardContent>
