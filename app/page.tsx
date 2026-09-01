@@ -185,6 +185,7 @@ export default function DashboardPage() {
     completedSteps: dbCase.completed_steps || [],
     currentStep: dbCase.current_step,
     notes: dbCase.notes,
+    updatedAt: dbCase.updated_at,
   })
 
   const loadCases = async () => {
@@ -415,13 +416,29 @@ export default function DashboardPage() {
   }
 
   const boardCases = useMemo(() => {
+    const hasActiveSearch = searchTerm.trim().length > 0
+    const cutoffDate = new Date()
+    cutoffDate.setMonth(cutoffDate.getMonth() - 3)
+    const cutoff = cutoffDate.getTime()
+
     return cases.filter((case_) => {
       const matchesSearch = case_.patientName.toLowerCase().includes(searchTerm.toLowerCase())
       const matchesPriority = priorityFilter === "all" || case_.priority === priorityFilter
       const matchesProcedure =
         procedureFilter === "all" || case_.procedure.toLowerCase() === procedureFilter.toLowerCase()
 
-      return matchesSearch && matchesPriority && matchesProcedure
+      if (!matchesSearch || !matchesPriority || !matchesProcedure) return false
+
+      // Keep the board's Completed column short -- cases finished more than 3
+      // months ago are hidden from it (they're untouched in the database, and
+      // still reachable via the Completed stat card or by searching a patient
+      // name here, which is why a name match skips this check entirely).
+      if (isCaseCompleted(case_) && !hasActiveSearch) {
+        const updatedAt = case_.updatedAt ? new Date(case_.updatedAt).getTime() : null
+        if (updatedAt && updatedAt < cutoff) return false
+      }
+
+      return true
     })
   }, [searchTerm, priorityFilter, procedureFilter, cases])
 
