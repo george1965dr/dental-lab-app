@@ -51,6 +51,17 @@ function isMoveAllowed(procedure: string, targetStep: string): boolean {
   return true
 }
 
+// A case's stored `workflow` array can still contain a step this procedure
+// is now barred from (e.g. "sintered" baked into a Temp Bridge/Crown or
+// Surgical Guide case created before that restriction existed). Filter those
+// out so adjacency is judged between the procedure's real neighbors, not a
+// step the card will never occupy — unless it's the step the card is
+// actually sitting in right now, which must stay so its position doesn't
+// disappear out from under it.
+function getEffectiveWorkflow(case_: any): string[] {
+  return case_.workflow.filter((step: string) => isMoveAllowed(case_.procedure, step) || step === case_.currentStep)
+}
+
 export default function KanbanBoard({ cases, onViewDetails, onUpdateWorkflow }: KanbanBoardProps) {
   const [dragCase, setDragCase] = useState<any>(null)
   const [dragPos, setDragPos] = useState({ x: 0, y: 0 })
@@ -87,7 +98,7 @@ export default function KanbanBoard({ cases, onViewDetails, onUpdateWorkflow }: 
     if (case_.currentStep === targetStep) return
     if (!isMoveAllowed(case_.procedure, targetStep)) return
 
-    const workflow: string[] = case_.workflow
+    const workflow = getEffectiveWorkflow(case_)
     const fromIndex = workflow.indexOf(case_.currentStep)
     const toIndexRaw = workflow.indexOf(targetStep)
     const toIndex = toIndexRaw === -1 && targetStep === "completed" ? workflow.length : toIndexRaw
