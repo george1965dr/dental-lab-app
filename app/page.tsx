@@ -233,7 +233,7 @@ export default function DashboardPage() {
       // selectable option: if the submitted value isn't one of the current choices,
       // that means the dropdown couldn't display the old value (not that the user
       // cleared it), so we fall back to what was already stored rather than nulling it.
-      const validImplantTypes = ["Neodent Helix", "Neodent Helix Narrow", "BSB NP"]
+      const validImplantTypes = ["Neodent Helix", "Neodent Helix Narrow", "BSB NP", "BSB RP", "3i C4.1", "3i C5.0"]
       const implantType = !isImplantProcedure
         ? null
         : validImplantTypes.includes(newCase.implantType)
