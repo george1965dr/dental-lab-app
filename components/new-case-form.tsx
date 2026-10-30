@@ -3,8 +3,8 @@
 import type React from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import RemakeReasonPopup from "./remake-reason-popup"
-import { useState, useEffect } from "react"
-import { User, Bluetooth as Tooth, Calendar } from "lucide-react" // Added Calendar icon import
+import { useState, useEffect, useRef } from "react"
+import { User, Bluetooth as Tooth, Calendar, Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,7 +17,7 @@ import { isCaseCompleted } from "@/lib/case-utils"
 interface NewCaseFormProps {
   isOpen: boolean
   onClose: () => void
-  onSubmit: (caseData: any) => void
+  onSubmit: (caseData: any) => void | Promise<void>
   editingCase?: any
 }
 
@@ -67,6 +67,60 @@ const procedures = [
   "Dx Workup",
 ]
 
+const PROCEDURES_REQUIRING_TEETH = [
+  "Crown",
+  "Implant Crown",
+  "Bridge",
+  "Implant Bridge",
+  "Inlay",
+  "Onlay",
+  "Surgical Guide",
+  "Remake",
+  "Temp Crown",
+  "Temp Bridge",
+]
+
+/** One procedure queued up for the same patient; each becomes its own case. */
+interface QueuedLine {
+  id: string
+  procedure: string
+  teeth: number[]
+  shade: string
+  implantType: string
+  remakeReason: string
+  remakeNotes: string
+  markCompleted: boolean
+}
+
+function buildWorkflow(procedure: string): string[] {
+  switch (procedure.toLowerCase()) {
+    case "crown":
+    case "bridge":
+    case "inlay":
+    case "onlay":
+    case "implant crown":
+    case "implant bridge":
+    case "remake":
+      // "new" is the staging step: nothing has been touched yet. A case only moves into
+      // "designed" once a technician actually advances it — it should never land there
+      // just from being created.
+      return ["new", "designed", "milled", "sintered", "completed"]
+    case "temp crown":
+    case "temp bridge":
+      // Temp restorations are milled or 3D-printed, never sintered (that's only for
+      // permanent ceramic work that goes through a sintering furnace).
+      return ["new", "designed", "milled", "completed"]
+    case "surgical guide":
+      // Same as temp restorations: milled or 3D-printed, never sintered.
+      return ["new", "designed", "3d_printed", "completed"]
+    case "dx workup":
+      // Digital-only (photos/scans reviewed on screen) — no lab fabrication steps.
+      return ["new", "designed", "completed"]
+    default:
+      return ["new", "designed", "completed"]
+  }
+}
+
 const implantTypes = ["Neodent Helix", "Neodent Helix Narrow", "BSB NP", "BSB RP", "3i C4.1", "3i C5.0"]
 
 const scannerDevices = ["Primescan", "Aoralscan"]
@@ -91,12 +145,17 @@ export default function NewCaseForm({ isOpen, onClose, onSubmit, editingCase }: 
   const [showRemakePopup, setShowRemakePopup] = useState(false)
 
   const [toothSelectionError, setToothSelectionError] = useState("")
+  const [queued, setQueued] = useState<QueuedLine[]>([])
+  const [lineError, setLineError] = useState("")
+  const detailsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!isOpen) return
 
     setShowRemakePopup(false)
     setToothSelectionError("")
+    setQueued([])
+    setLineError("")
 
     console.log("[v0] NewCaseForm useEffect triggered")
     console.log("[v0] editingCase:", editingCase)
@@ -200,123 +259,131 @@ export default function NewCaseForm({ isOpen, onClose, onSubmit, editingCase }: 
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-
-    const proceduresRequiringTeeth = [
-      "Crown",
-      "Implant Crown",
-      "Bridge",
-      "Implant Bridge",
-      "Inlay",
-      "Onlay",
-      "Surgical Guide",
-      "Remake",
-      "Temp Crown",
-      "Temp Bridge",
-    ]
-
-    if (proceduresRequiringTeeth.includes(formData.procedure) && formData.teeth.length === 0) {
+  // Checks the procedure line currently in the form. Returns false (and tells the
+  // user why) when it can't be added/submitted yet.
+  const validateLine = (): boolean => {
+    if (PROCEDURES_REQUIRING_TEETH.includes(formData.procedure) && formData.teeth.length === 0) {
       setToothSelectionError("Please select at least one tooth for this procedure.")
-      return
+      return false
     }
 
     if (formData.procedure === "Remake" && !formData.remakeReason) {
       alert("Please specify the reason for the remake.")
       setShowRemakePopup(true)
-      return
+      return false
     }
 
     setToothSelectionError("")
+    return true
+  }
 
-    const submitCase = () => {
-      if (editingCase) {
-        const workflow: string[] = editingCase.workflow || []
-        const completedSteps = formData.markCompleted ? workflow : editingCase.completedSteps
-        const currentStep = formData.markCompleted ? "completed" : editingCase.currentStep
+  const lineFromForm = (): QueuedLine => ({
+    id: crypto.randomUUID(),
+    procedure: formData.procedure,
+    teeth: formData.teeth,
+    shade: formData.shade,
+    implantType: formData.implantType,
+    remakeReason: formData.remakeReason,
+    remakeNotes: formData.remakeNotes,
+    markCompleted: formData.markCompleted,
+  })
 
-        const updatedCase = {
-          ...editingCase,
-          patientName: formData.patientName,
-          procedure: formData.procedure,
-          teeth: formData.teeth.map(String),
-          shade: formData.shade,
-          priority: formData.priority,
-          startDate: formData.startDate,
-          dueDate: formData.dueDate,
-          notes: formData.notes,
-          implantType: formData.implantType,
-          scanner: formData.scanner,
-          remakeReason: formData.remakeReason,
-          remakeNotes: formData.remakeNotes,
-          completedSteps,
-          currentStep,
-        }
-        onSubmit(updatedCase)
-      } else {
+  // Parks the current procedure in the list and clears the per-procedure fields.
+  // Shade is deliberately kept: it is usually the same for the whole patient.
+  const addAnotherProcedure = () => {
+    if (!formData.procedure) {
+      setLineError("Choose a procedure first.")
+      return
+    }
+    setLineError("")
+    if (!validateLine()) return
+
+    setQueued((prev) => [...prev, lineFromForm()])
+    setFormData((prev) => ({
+      ...prev,
+      procedure: "",
+      teeth: [],
+      implantType: "",
+      remakeReason: "",
+      remakeNotes: "",
+      markCompleted: false,
+    }))
+    detailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }
+
+  const removeQueued = (id: string) => setQueued((prev) => prev.filter((line) => line.id !== id))
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (editingCase) {
+      if (!validateLine()) return
+
+      const workflow: string[] = editingCase.workflow || []
+      const completedSteps = formData.markCompleted ? workflow : editingCase.completedSteps
+      const currentStep = formData.markCompleted ? "completed" : editingCase.currentStep
+
+      const updatedCase = {
+        ...editingCase,
+        patientName: formData.patientName,
+        procedure: formData.procedure,
+        teeth: formData.teeth.map(String),
+        shade: formData.shade,
+        priority: formData.priority,
+        startDate: formData.startDate,
+        dueDate: formData.dueDate,
+        notes: formData.notes,
+        implantType: formData.implantType,
+        scanner: formData.scanner,
+        remakeReason: formData.remakeReason,
+        remakeNotes: formData.remakeNotes,
+        completedSteps,
+        currentStep,
+      }
+      onSubmit(updatedCase)
+      onClose()
+      return
+    }
+
+    // New case(s): everything already queued, plus the procedure still in the form
+    // (if one is filled in, or if nothing has been queued at all).
+    const lines = [...queued]
+    if (formData.procedure || lines.length === 0) {
+      if (!validateLine()) return
+      lines.push(lineFromForm())
+    }
+
+    const newCases = lines.map((line) => {
+      const workflow = buildWorkflow(line.procedure)
+      return {
         // crypto.randomUUID() gives ~4 billion possible values in 8 hex chars —
         // collisions are effectively impossible, unlike the previous scheme which
         // only used the last 3 digits of the timestamp (1000 values, repeating
         // every second) and collided with real, pre-existing case IDs.
-        const caseId = `C${crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()}`
-
-        let workflow: string[] = []
-        switch (formData.procedure.toLowerCase()) {
-          case "crown":
-          case "bridge":
-          case "inlay":
-          case "onlay":
-          case "implant crown":
-          case "implant bridge":
-          case "remake":
-            // "new" is the staging step: nothing has been touched yet. A case only moves into
-            // "designed" once a technician actually advances it — it should never land there
-            // just from being created.
-            workflow = ["new", "designed", "milled", "sintered", "completed"]
-            break
-          case "temp crown":
-          case "temp bridge":
-            // Temp restorations are milled or 3D-printed, never sintered (that's only for
-            // permanent ceramic work that goes through a sintering furnace).
-            workflow = ["new", "designed", "milled", "completed"]
-            break
-          case "surgical guide":
-            // Same as temp restorations: milled or 3D-printed, never sintered.
-            workflow = ["new", "designed", "3d_printed", "completed"]
-            break
-          case "dx workup":
-            // Digital-only (photos/scans reviewed on screen) — no lab fabrication steps.
-            workflow = ["new", "designed", "completed"]
-            break
-          default:
-            workflow = ["new", "designed", "completed"]
-        }
-
-        const newCase = {
-          id: caseId,
-          patientName: formData.patientName,
-          procedure: formData.procedure,
-          teeth: formData.teeth.map(String),
-          shade: formData.shade,
-          priority: formData.priority,
-          startDate: formData.startDate,
-          dueDate: formData.dueDate,
-          currentStep: formData.markCompleted ? "completed" : workflow[0],
-          workflow,
-          completedSteps: formData.markCompleted ? workflow : [],
-          notes: formData.notes,
-          implantType: formData.implantType,
-          scanner: formData.scanner,
-          remakeReason: formData.remakeReason,
-          remakeNotes: formData.remakeNotes,
-        }
-        onSubmit(newCase)
+        id: `C${crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()}`,
+        patientName: formData.patientName,
+        procedure: line.procedure,
+        teeth: line.teeth.map(String),
+        shade: line.shade,
+        priority: formData.priority,
+        startDate: formData.startDate,
+        dueDate: formData.dueDate,
+        currentStep: line.markCompleted ? "completed" : workflow[0],
+        workflow,
+        completedSteps: line.markCompleted ? workflow : [],
+        notes: formData.notes,
+        implantType: line.implantType,
+        scanner: formData.scanner,
+        remakeReason: line.remakeReason,
+        remakeNotes: line.remakeNotes,
       }
+    })
 
-      onClose()
-    }
-
-    submitCase()
+    // One at a time so the cards arrive in the order they were entered.
+    void (async () => {
+      for (const newCase of newCases) await onSubmit(newCase)
+    })()
+    onClose()
   }
 
   const handleTeethSelection = (toothNumber: number) => {
@@ -331,12 +398,16 @@ export default function NewCaseForm({ isOpen, onClose, onSubmit, editingCase }: 
 
   const renderToothButton = (toothNumber: number) => {
     const isSelected = formData.teeth.includes(toothNumber)
+    const usedBy = queued.filter((line) => line.teeth.includes(toothNumber)).map((line) => line.procedure)
     return (
       <button
         key={toothNumber}
         type="button"
         onClick={() => handleTeethSelection(toothNumber)}
+        title={usedBy.length > 0 ? `Already on: ${usedBy.join(", ")}` : undefined}
         className={`w-10 h-10 text-sm font-semibold rounded-xl border-2 transition-all duration-200 transform hover:scale-105 ${
+          usedBy.length > 0 ? "ring-2 ring-primary/60 ring-offset-2 ring-offset-background " : ""
+        }${
           isSelected
             ? "bg-accent text-accent-foreground border-accent shadow-lg shadow-accent/25"
             : "bg-background border-border hover:border-primary hover:shadow-md text-foreground"
@@ -449,10 +520,48 @@ export default function NewCaseForm({ isOpen, onClose, onSubmit, editingCase }: 
                   </CardContent>
                 </Card>
 
+                {!editingCase && queued.length > 0 && (
+                  <Card className="border-0 shadow-sm bg-card rounded-xl">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center gap-2 text-lg font-semibold text-foreground">
+                        Procedures for this patient ({queued.length})
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ul className="space-y-2">
+                        {queued.map((line) => (
+                          <li
+                            key={line.id}
+                            className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/40 px-4 py-2.5"
+                          >
+                            <p className="min-w-0 text-sm">
+                              <span className="font-semibold text-foreground">{line.procedure}</span>
+                              <span className="text-muted-foreground">
+                                {line.teeth.length > 0 ? ` · Teeth ${[...line.teeth].sort((a, b) => a - b).join(", ")}` : ""}
+                                {line.shade && line.shade !== "N/A" ? ` · Shade ${line.shade}` : ""}
+                                {line.implantType ? ` · ${line.implantType}` : ""}
+                              </span>
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => removeQueued(line.id)}
+                              aria-label={`Remove ${line.procedure}`}
+                              className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <div ref={detailsRef} className="scroll-mt-4">
                 <Card className="border-0 shadow-sm bg-card rounded-xl">
                   <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-lg font-semibold text-foreground">
-                      Case Details
+                      {!editingCase && queued.length > 0 ? "Next procedure" : "Case Details"}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -601,6 +710,7 @@ export default function NewCaseForm({ isOpen, onClose, onSubmit, editingCase }: 
                     )}
                   </CardContent>
                 </Card>
+                </div>
 
                 <Card className="border-0 shadow-sm bg-card rounded-xl">
                   <CardHeader className="pb-3">
@@ -629,6 +739,11 @@ export default function NewCaseForm({ isOpen, onClose, onSubmit, editingCase }: 
                         <p className="text-destructive text-sm font-medium">{toothSelectionError}</p>
                       </div>
                     )}
+                    {!editingCase && queued.length > 0 && (
+                      <p className="mb-4 text-sm text-muted-foreground">
+                        Outlined teeth are already part of another procedure for this patient.
+                      </p>
+                    )}
                     <div className="space-y-8">
                       <div className="bg-muted/50 p-6 rounded-2xl">
                         <Label className="text-base font-semibold text-foreground mb-4 block">Upper Jaw</Label>
@@ -655,6 +770,28 @@ export default function NewCaseForm({ isOpen, onClose, onSubmit, editingCase }: 
                   </CardContent>
                 </Card>
 
+                {!editingCase && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-border bg-muted/30 px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Same patient, another procedure?</p>
+                      <p className="text-sm text-muted-foreground">
+                        Add this one and keep going. Patient, dates, priority, scanner and notes are shared; each procedure
+                        becomes its own case.
+                      </p>
+                      {lineError && <p className="mt-1 text-sm font-medium text-destructive">{lineError}</p>}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={addAnotherProcedure}
+                      className="shrink-0 rounded-xl bg-transparent"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add procedure
+                    </Button>
+                  </div>
+                )}
+
                 <Card className="border-0 shadow-sm bg-card rounded-xl">
                   <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-lg font-semibold text-foreground">
@@ -678,7 +815,12 @@ export default function NewCaseForm({ isOpen, onClose, onSubmit, editingCase }: 
                 Cancel
               </Button>
               <Button type="submit" className="px-6 rounded-xl">
-                {editingCase ? "Update Case" : "Create Case"}
+                {editingCase
+                  ? "Update Case"
+                  : (() => {
+                      const total = queued.length + (formData.procedure || queued.length === 0 ? 1 : 0)
+                      return total > 1 ? `Create ${total} Cases` : "Create Case"
+                    })()}
               </Button>
             </div>
           </form>
